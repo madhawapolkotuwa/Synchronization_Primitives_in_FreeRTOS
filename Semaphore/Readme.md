@@ -1,3 +1,10 @@
+## Youtube Video
+
+[![Youtube Video](https://img.youtube.com/vi/cdcLoYO5OAY/0.jpg)](https://www.youtube.com/watch?v=cdcLoYO5OAY) 
+
+[![Youtube Video](https://img.youtube.com/vi/HgZR4UvT7tY/0.jpg)](https://www.youtube.com/watch?v=HgZR4UvT7tY) 
+
+
 ## Binary Semaphore
 
 ### Example 01 
@@ -103,7 +110,7 @@ void StartTask02(void const * argument)
 ![](binarySemaphore_PriorityInversion.png)
 
 
-### Example 03
+### Example 03 (ISR)
 ```c
 void Task01_Entry(void const * argument)
 {
@@ -173,9 +180,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 </ul>
 
 ```c
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
+TaskHandle_t Task01_Handle;
+TaskHandle_t Task02_Handle;
+TaskHandle_t Task03_Handle;
+
+SemaphoreHandle_t CountingSemaphore_Handle;
+
 void Task01(void* arguments)
 {
-	// Give 3 semaphores at the beginning
+	// Give 2 semaphores at the beginning
 	xSemaphoreGive(CountingSemaphore_Handle);
 	xSemaphoreGive(CountingSemaphore_Handle);
 
@@ -282,7 +299,7 @@ int main(void)
    - Task03 release a semaphore (1), sets PG11 LOW.
    - Task02 takes a semaphore (0), sets PG14 HIGH (GPIO ON).
 
-### Example 02
+### Example 02 (ISR)
 
 ```c
 void Task01(void* arg)
