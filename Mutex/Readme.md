@@ -1,3 +1,6 @@
+
+[![Youtube Video](https://img.youtube.com/vi/DO_xbIu7GK0/0.jpg)](https://www.youtube.com/watch?v=DO_xbIu7GK0) 
+
 # Normal Mutex
 
 * A mutex (mutual exclusion) is used to protect a shared resource (like UART, I²C, SPI, or a buffer).
@@ -9,10 +12,10 @@
 
 ```c
 /* ************************* Mutex Handle ************************* */
-QueueHandle_t SimpleMutex;
+SemaphoreHandle_t Mutex_Handle;
 
 /* ************************* Task Handles *********************************** */
-TaskHandle_t Task01_Handle, Task02_Handle;
+TaskHandle_t Mutex_Handle, Task02_Handle;
 
 /* ************************* Task Functions ************************** */
 void Task01(void *pvParameters);
@@ -20,30 +23,30 @@ void Task02(void *pvParameters);
 
 void GPIO_TOGLE_01()
 {
-	xSemaphoreTake(SimpleMutex, portMAX_DELAY); // acquire the mutex
+	xSemaphoreTake(Mutex_Handle, portMAX_DELAY); // acquire the mutex
 
 	HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
 	vTaskDelay(pdMS_TO_TICKS(500));
 
-	xSemaphoreGive(SimpleMutex); // release the mutex
+	xSemaphoreGive(Mutex_Handle); // release the mutex
 }
 
 void GPIO_TOGLE_02()
 {
-	xSemaphoreTake(SimpleMutex, portMAX_DELAY); // acquire the mutex
+	xSemaphoreTake(Mutex_Handle, portMAX_DELAY); // acquire the mutex
 
 	HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
 	vTaskDelay(pdMS_TO_TICKS(500));
 
-	xSemaphoreGive(SimpleMutex); // release the mutex
+	xSemaphoreGive(Mutex_Handle); // release the mutex
 }
 
 int main(void)
 {
     // .......
 
-  SimpleMutex = xSemaphoreCreateMutex();
-  if (SimpleMutex == NULL) {
+  Mutex_Handle = xSemaphoreCreateMutex();
+  if (Mutex_Handle == NULL) {
 		HAL_UART_Transmit(&huart1, (uint8_t *)"Mutex Creation Failed\r\n", 23, HAL_MAX_DELAY);
    }
 
@@ -138,28 +141,59 @@ void Task02(void *argument) {
 ## Example 03 : (Check Ownership)
 
 ```c
-void GPIO_TOGLE_01()
+/* ************************* Task Functions ************************** */
+void Task01(void *pvParameters)
 {
-	xSemaphoreTake(SimpleMutex, portMAX_DELAY); // acquire the mutex
+	while(1)
+	{
+		xSemaphoreTake(Mutex_Handle, portMAX_DELAY); // acquire the mutex
 
-	HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
-	vTaskDelay(pdMS_TO_TICKS(500));
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
+		vTaskDelay(pdMS_TO_TICKS(500));
 
-    // not releasing the mutex 
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
+		//xSemaphoreGive(Mutex_Handle); // not release the mutex
+		//vTaskDelay(pdMS_TO_TICKS(10)); // small delay to allow Task02 to run
+	}
 }
 
-void GPIO_TOGLE_02()
+void Task02(void *pvParameters)
 {
+	while(1)
+	{
+		xSemaphoreTake(Mutex_Handle, portMAX_DELAY); // acquire the mutex
 
-    HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
-	vTaskDelay(pdMS_TO_TICKS(500));
-    
-    xSemaphoreGive(SimpleMutex); // can not do this (mutex has Ownership)	
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+		vTaskDelay(pdMS_TO_TICKS(500));
 
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+		//xSemaphoreGive(Mutex_Handle); // not release the mutex
+	}
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == GPIO_PIN_0)
+	{
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11); // Toggle (PG11) to indicate button press
+		// Try to release Mutex, when the button is pressed
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(Mutex_Handle, &xHigherPriorityTaskWoken);
+
+		// Request a context switch if a higher priority task was woken
+		portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
+	}
 }
 
 ```
-![](example3.png)
+**The above ISR release will not work, and it's completely wrong. Can't release the mutex outside the owner.**
+* ISR can’t release a mutex (because of ownership).
+* The mutex stays locked.
+* Tasks remain blocked.
+* Interrupt never fully clears, so it triggers only once.
+
+<br></br>
 
 
 # Recursive Mutex
@@ -413,7 +447,7 @@ Mutex created								| 0.0s	| created Recursive Mutex
 Task01: Enter Function_A 					| 0.0s	| Enter to `Task01` and Calls `Fn_A` (**Fn_A** : Take Recursive Mutex and lock)
 Task01: Enter Function_B					| 0.5s	| `Fn_A` waits **0.5s** & calls `Fn_B` (**Fn_B** : Take Recursive Mutex and increase the lock count)
 Task01: Exit Function_B Releasing Mutex		| 1.0s	| `Fn_B` waits **0.5s** & Exit. (Release mutex: decrement lock count)
-Task01: Exit Function_A Releasing Mutex		| 1.0s	| `Fn_A` Relese the mutex & exit `Fn_A`. (then `Task01` waits **2s**)
+Task01: Exit Function_A Releasing Mutex		| 1.0s	| `Fn_A` Release the mutex & exit `Fn_A`. (then `Task01` waits **2s**)
 Task02: Acquired Mutex						| 1.0s	| `Task02` Acquired Mutex and waits **1s**
 Task02: Releasing Mutex						| 2.0s	| `Task02` Releasing Mutex & `Task02` waits **3s**
 Task01: Enter Function_A					| 3.0s	| After waiting **2s**, `Task01` tries again to take the mutex. By this time, `Task02` has already released the mutex, so `Task01` successfully takes ownership. If `Task01` had attempted to take the mutex before `Task02` released it, `Task01` would have been blocked until the mutex became available. Even though this is a Recursive Mutex, the rule of ownership still applies — only the task that already owns the mutex can take it multiple times (incrementing the lock count). Other tasks must wait until the mutex is completely released (lock count = 0).
