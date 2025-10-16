@@ -1,5 +1,7 @@
 # Event Groups
 
+[![Youtube Video](https://img.youtube.com/vi/BsUXqmotvlE/0.jpg)](https://www.youtube.com/watch?v=BsUXqmotvlE) 
+
 * An event group is just a collection of bits.
 * Tasks can wait on one or more bits to be set.
 * Tasks can wait for any one bit (OR condition) or for all bits together (AND condition).
@@ -144,17 +146,17 @@ int main(void)
 
 | `Task03` Count | Watchdog Log Message                   | Explanation                                                   |
 | -------------- | -------------------------------------- | ------------------------------------------------------------- |
-| 0              | All tasks are running                  | Watchdog starts → all three tasks set bits within **1 s**.        |
-| 1              | All tasks are running                  | Watchdog checks again after **2 s**, all tasks still alive.       |
+| 0              | All tasks are running                  | Watchdog starts → all three tasks set bits first.        |
+| 1              | All tasks are running                  | Watchdog checks again, after **1s** all tasks set there bits, so All tasks run.       |
 | 2              | All tasks are running                  | Same as above.                                                |
 | 3              | All tasks are running                  | Same as above.                                                |
-| 4              | —                                      | `Task03` skips setting its bit. Watchdog is waiting.            |
+| 4              | —                                      | in `Task03` count = 4, skips setting its bit. Watchdog is waiting.   |
 | 5              | Task03 is not running. Task03 failure. | Timeout (**2 s)** expired, bit from `Task03` missing.               |
 | 6              | —                                      | `Task03` still not setting its bit. Watchdog waiting.           |
-| 7              | Task03 is not running. Task03 failure. | Watchdog times out again, `Task03` still missing.               |
-| 8              | —                                      | Same as above, watchdog waiting.                              |
+| 7              | Task03 is not running. Task03 failure. | Watchdog Timeout **(2 s)** again, `Task03` still missing.               |
+| 8              | —                                      | `Task03` still not setting its bit. Watchdog waiting.                              |
 | 9              | Task03 is not running. Task03 failure. | Timeout expired again.                                        |
-| 10             | All tasks are running                  | `Task03` resumes setting its bit. Watchdog sees all bits again. |
+| 10             | All tasks are running                  | count =  `Task03` resumes setting its bit. Watchdog sees all bits again. |
 | 11             | All tasks are running                  | Normal operation continues.                                   |
 
 🔹 Key Takeaways
@@ -178,14 +180,14 @@ void Task01(void* pvParameters)
 {
 	for(;;)
 	{
-		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
-
 		EventBits_t uxReturn = xEventGroupSync(
 				EventGroup_Handle,  // The event group
 				task01_bit, 		// The bits being set.
 				all_sync_bits,		// Wait for all bits
 				pdMS_TO_TICKS(2000) // Wait for 2000 ms
 		);
+		
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
 
 		if((uxReturn & all_sync_bits) == all_sync_bits){
 			// All three tasks reached the synchronisation point before the call
@@ -196,7 +198,7 @@ void Task01(void* pvParameters)
 			HAL_UART_Transmit(&huart1, (uint8_t*) "Task01: Synchronization timeout.\n", 33, HAL_MAX_DELAY);
 		}
 
-		vTaskDelay(pdMS_TO_TICKS(500));
+		vTaskDelay(pdMS_TO_TICKS(1000));
 
 	}
 }
@@ -205,8 +207,6 @@ void Task02(void* pvParameters)
 {
 	for(;;)
 	{
-		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
-
 		EventBits_t uxReturn = xEventGroupSync(
 				EventGroup_Handle,  // The event group
 				task02_bit, 		// The bits being set.
@@ -214,6 +214,7 @@ void Task02(void* pvParameters)
 				pdMS_TO_TICKS(2000) // Wait for 2000 ms
 		);
 
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
 
 		if((uxReturn & all_sync_bits) == all_sync_bits){
 			// All three tasks reached the synchronisation point before the call
@@ -233,8 +234,6 @@ void Task03(void* pvParameters)
 	static int count = 0;
 	for(;;)
 	{
-		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11);
-
 		 if (count >= 3 && count <= 6) {
 			 // Simulate a failure (not calling sync)
 			 HAL_UART_Transmit(&huart1, (uint8_t *)"Task03: Missed sync (failure simulation).\n", 43, HAL_MAX_DELAY);
@@ -248,6 +247,7 @@ void Task03(void* pvParameters)
 					pdMS_TO_TICKS(2000) // Wait for 2000 ms
 			);
 
+			HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11);
 
 			if((uxReturn & all_sync_bits) == all_sync_bits){
 				// All three tasks reached the synchronisation point before the call
@@ -262,7 +262,7 @@ void Task03(void* pvParameters)
 		 count++;
 		 if (count > 8) count = 0;
 
-		 vTaskDelay(pdMS_TO_TICKS(2000));
+		 vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
 ```
@@ -271,19 +271,18 @@ void Task03(void* pvParameters)
 
 | Time (s) | Task03 Count | GPIO Toggles (from chart)             | UART Message(s)                                                                                                         | Explanation                                                                                                              |
 | -------- | ------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| 0–2      | 0            | T1 ↑, T2 ↑, T3 ↑                      | `Task02: All tasks synchronized.`<br>`Task03: All tasks synchronized.`                                                  | At the very start, all three tasks reach the sync barrier. Event group releases them together → GPIO toggles align.      |
-| 2–4      | 1            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Again, all tasks sync successfully. GPIOs toggle close together.                                                         |
-| 4–6      | 2            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Normal sync cycle. All three tasks participate.                                                                          |
-| 6–8      | 3            | T1 ↑, T2 ↑, **T3 ↑ but skipped sync** | `Task03: Missed sync (failure simulation).`<br>`Task01: Synchronization timeout.`<br>`Task02: Synchronization timeout.` | Task03 toggles its pin but doesn’t call `xEventGroupSync()`. T1 & T2 block, waiting for all bits, then timeout after 2s. |
-| 8–10     | 4            | T1 ↑, T2 ↑, T3 ↑ (no sync)            | `Task03: Missed sync`<br>`Task01/Task02: Timeout`                                                                       | Same as count=3. Sync barrier fails because Task03 didn’t participate.                                                   |
-| 10–12    | 5            | T1 ↑, T2 ↑, T3 ↑ (no sync)            | `Task03: Missed sync`<br>`Task01/Task02: Timeout`                                                                       | Failure continues.                                                                                                       |
-| 12–14    | 6            | T1 ↑, T2 ↑, T3 ↑ (no sync)            | `Task03: Missed sync`<br>`Task01/Task02: Timeout`                                                                       | Still failing.                                                                                                           |
-| 14–16    | 7            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Task03 rejoins the sync. Now all tasks reach barrier again → GPIOs toggle together.                                      |
-| 16–18    | 0            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Counter reset. Back to normal sync.                                                                                      |
-| 18–20    | 1            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Stable synchronization again.                                                                                            |
-| 20–22    | 2            | T1 ↑, T2 ↑, T3 ↑                      | `Task03: All tasks synchronized.`                                                                                       | Still stable.                                                                                                            |
-| 22–26    | 3–6          | T1 ↑, T2 ↑, T3 ↑ (no sync)            | `Task03: Missed sync` + T1/T2 timeouts                                                                                  | The failure window repeats exactly like before.                                                                          |
+| 0 | 0 | Task03: All tasks synchronized. |  At the very start, all three tasks reach the sync barrier. Event group releases them together → GPIO toggles align. 
+| 1 | 1 | Task03: All tasks synchronized. |  Again, all tasks sync successfully. GPIOs toggle together. 
+| 2 | 2 | Task03: All tasks synchronized. |  Again, all tasks sync successfully. GPIOs toggle together. 
+| 3 | 3 | Task03: Missed sync (failure simulation). |  Task03 doesn’t call `xEventGroupSync()`. T1 & T2 block, waiting for all bits.
+| 4 | 4 | Task03: Missed sync (failure simulation). |  Task03 doesn’t call `xEventGroupSync()`. T1 & T2 block, waiting for all bits.
+| 5 | 5 | Task03: Missed sync (failure simulation).<br>Task01: Synchronization timeout.  |  Task03 again doesn’t call `xEventGroupSync()` and T1 & T2 timeout after `2s`.
+| 6 | 6 | Task03: Missed sync (failure simulation).  |  Task03 again doesn’t call `xEventGroupSync()` and T1 & T2 again block.
+| 7 | 7 | Task03: All tasks synchronized.  |  Task03 call `xEventGroupSync()` Again, all tasks sync successfully.GPIOs toggle together. 
+| 8 | 8 | Task03: All tasks synchronized.  |  Task03 call `xEventGroupSync()` Again, all tasks sync successfully.GPIOs toggle together. 
 
+<br>
+<br>
 
 ### Example 03 Event Groups with External Interrupt (EXTI)
 

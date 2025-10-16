@@ -30,6 +30,9 @@ uses it at a time.
 already holds it.
 
 ## [5. Event Groups](/EventGroups/)
+
+[![Youtube Video](https://img.youtube.com/vi/BsUXqmotvlE/0.jpg)](https://www.youtube.com/watch?v=BsUXqmotvlE) 
+
 * A collection of bits that tasks can `wait on`.
 * Tasks can wait for one or more bits to be set before continuing.
 * Useful for synchronization of multiple events.
