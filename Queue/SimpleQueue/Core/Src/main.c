@@ -69,6 +69,11 @@ static void MX_USART1_UART_Init(void);
 
 uint8_t rx_data = 0;
 
+typedef struct {
+    char* pStr;
+    int value;
+}QMsg;
+
 /* ******************* TASK HANDLERS ******************* */
 xTaskHandle Task01_Handle;
 xTaskHandle Task02_Handle;
@@ -80,19 +85,22 @@ xQueueHandle Queue_Handle;
 /* ******************* TASK FUNCTIONS ******************* */
 void Task01_Producer(void* argument)
 {
-	int t1Value = 100;
+	QMsg t1Msg;
+
 	uint32_t TickDelay = pdMS_TO_TICKS(4000); // convert ms to ticks
 	while(1){
 
 		char* str = (char*) pvPortMalloc(100 * sizeof(char)); // Allocate memory from the heap
 
-		if(xQueueSend(Queue_Handle, &t1Value, portMAX_DELAY) == pdPASS){
+		t1Msg.pStr = "Message from T1";
+		t1Msg.value = 101;
+
+		if(xQueueSend(Queue_Handle, &t1Msg, portMAX_DELAY) == pdPASS){
 
 			HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
 
-			sprintf(str, "T1 Successfully sent count to the queue: %d\n", t1Value);
+			sprintf(str, "T1 Successfully sent message to the queue value:%d  Msg:%s\n", t1Msg.value, t1Msg.pStr);
 			HAL_UART_Transmit(&huart1, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
-
 		}
 
 		vPortFree(str); // Free the allocated memory
@@ -103,17 +111,22 @@ void Task01_Producer(void* argument)
 
 void Task02_Producer(void* argument)
 {
-	int t2Value = 202;
+	QMsg t2Msg;
+
 	uint32_t TickDelay = pdMS_TO_TICKS(2000); // convert ms to ticks
 	while(1){
 
 		char* str = (char*) pvPortMalloc(100 * sizeof(char)); // Allocate memory from the heap
 
-		if(xQueueSend(Queue_Handle, &t2Value, portMAX_DELAY) == pdPASS){
+		t2Msg.pStr = "Message from T2";
+		t2Msg.value = 202;
+
+
+		if(xQueueSend(Queue_Handle, &t2Msg, portMAX_DELAY) == pdPASS){
 
 			HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
 
-			sprintf(str, "T2 Successfully sent count to the queue: %d\n", t2Value);
+			sprintf(str, "T2 Successfully sent message to the queue value:%d  Msg:%s\n", t2Msg.value, t2Msg.pStr);
 			HAL_UART_Transmit(&huart1, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
 
 		}
@@ -126,20 +139,20 @@ void Task02_Producer(void* argument)
 
 void Task03_Consumer(void* argument)
 {
-	int received = 0;
+	QMsg received; // Allocate memory for the message
 	uint32_t TickDelay = pdMS_TO_TICKS(5000); // convert ms to ticks
 	while(1){
 
-		char* str = (char*) pvPortMalloc(100 * sizeof(char)); // Allocate memory from the heap
+		char* str = (char*) pvPortMalloc(200 * sizeof(char)); // Allocate memory from the heap
 
-		if(xQueueReceive(Queue_Handle, &received, portMAX_DELAY) != pdTRUE) // Wait indefinitely until something arrives
+		if(xQueueReceive(Queue_Handle, &received, portMAX_DELAY) != pdPASS) // Wait indefinitely until something arrives
 		{
-			HAL_UART_Transmit(&huart1, (uint8_t*) "Error in receiving from Queue\n", 31, HAL_MAX_DELAY);
+			//HAL_UART_Transmit(&huart1, (uint8_t*) "Error in receiving from Queue\n", 31, HAL_MAX_DELAY);
 		}else {
 
 			HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11);
 
-			sprintf(str, "Successfully received value from the queue: %d  \n\n", received);
+			sprintf(str, "Successfully received QMsg from the queue: value:%d  Msg:%s\n\n", received.value, received.pStr);
 			HAL_UART_Transmit(&huart1, (uint8_t *)str, strlen(str), HAL_MAX_DELAY);
 		}
 
@@ -151,25 +164,29 @@ void Task03_Consumer(void* argument)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart)
 {
+	QMsg ISRMsg;
 
-	int ToSend = 123456789;
 	if(rx_data == 'r')
 	{
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-		if (xQueueSendToFrontFromISR(Queue_Handle, &ToSend, &xHigherPriorityTaskWoken) == pdPASS) // if queue is full, it will block.
+		ISRMsg.pStr = "Message from ISR";
+		ISRMsg.value = 999;
+
+		if (xQueueSendToFrontFromISR(Queue_Handle, &ISRMsg, &xHigherPriorityTaskWoken) == pdPASS) // if queue is full, it will block.
 		{
 			HAL_UART_Transmit(huart, (uint8_t*) "\nSent from ISR\n\n", 17, HAL_MAX_DELAY);
 		}else {
-			HAL_UART_Transmit(huart, (uint8_t*) "\n\nCould not send from ISR Queue Full\n\n", 38, HAL_MAX_DELAY); // queue full
+			HAL_UART_Transmit(huart, (uint8_t*) "\nCould not send from ISR Queue Full\n\n", 38, HAL_MAX_DELAY); // queue full
 		}
 
 		portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 	}
 
-	// Restart UART Reception in Interrupt mode
+    // Restart UART Reception in Interrupt mode
 	HAL_UART_Receive_IT(huart, &rx_data, 1);
 }
+
 
 /* USER CODE END 0 */
 
@@ -208,7 +225,7 @@ int main(void)
   /* USER CODE END 2 */
 
   /* ********************* Create integer QUEUE ********************* */
-  Queue_Handle = xQueueCreate(5, sizeof(int));
+  Queue_Handle = xQueueCreate(5, sizeof(QMsg));
   if (Queue_Handle == NULL) {
 	// Queue was not created and must not be used.
 	HAL_UART_Transmit(&huart1, (uint8_t *)"Queue was not created and must not be used.\n", 43, HAL_MAX_DELAY);
@@ -217,12 +234,13 @@ int main(void)
   }
 
   /* ********************* Create Tasks ********************* */
-  xTaskCreate(Task01_Producer, "T1", 128, NULL, 3, &Task01_Handle);
-  xTaskCreate(Task02_Producer, "T2", 128, NULL, 2, &Task02_Handle);
-  xTaskCreate(Task03_Consumer, "T3", 128, NULL, 1, &Task03_Handle);
+  xTaskCreate(Task01_Producer, "T1", 256, NULL, 3, &Task01_Handle);
+  xTaskCreate(Task02_Producer, "T2", 256, NULL, 2, &Task02_Handle);
+  xTaskCreate(Task03_Consumer, "T3", 256, NULL, 1, &Task03_Handle);
 
   /* Start UART Reception in Interrupt mode */
   HAL_UART_Receive_IT(&huart1, &rx_data, 1);
+
 
   vTaskStartScheduler(); // This function will never return unless RTOS scheduler stops
 

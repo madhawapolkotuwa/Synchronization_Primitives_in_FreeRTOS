@@ -1,6 +1,14 @@
+# Direct-to-Task Notification
+
+[![Youtube Video](https://img.youtube.com/vi/PYBfxhxOfsg/0.jpg)](https://www.youtube.com/watch?v=PYBfxhxOfsg) 
+
 ### Example 1 – Simple Task-to-Task Notification (Semaphore Replacement)
 
 ```c
+#include "FreeRTOS.h"
+#include "task.h"
+
+
 /* *************************** Task Handles ******************************* */
 TaskHandle_t Task01_Handle;
 TaskHandle_t Task02_Handle;
@@ -11,11 +19,15 @@ void Task01(void* pvParameters)
 {
 	for(;;)
 	{
-		xTaskNotifyGive(Task02_Handle);
 		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
 		HAL_UART_Transmit(&huart1, (uint8_t *)"Task 1: Notification Sent\n", 27, HAL_MAX_DELAY);
 
-		vTaskDelay(1000);
+		vTaskDelay(2000);
+
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_13);
+		xTaskNotifyGive(Task02_Handle); // Notify Task 2
+
+		vTaskDelay(2000);
 	}
 }
 
@@ -23,10 +35,17 @@ void Task02(void* pvParameters)
 {
 	for(;;)
 	{
-		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		xTaskNotifyGive(Task03_Handle);
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Wait for notification
 		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+
 		HAL_UART_Transmit(&huart1, (uint8_t*) "Task 2: Notification Received\n", 30, HAL_MAX_DELAY);
+
+		vTaskDelay(1000);
+
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_14);
+		xTaskNotifyGive(Task03_Handle); // Notify Task 3
+
+		vTaskDelay(1000);
 	}
 }
 
@@ -34,9 +53,17 @@ void Task03(void* pvParameters)
 {
 	for(;;)
 	{
-		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Wait for notification
 		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11);
+
 		HAL_UART_Transmit(&huart1, (uint8_t*) "Task 3: Notification Received\n", 30, HAL_MAX_DELAY);
+
+		vTaskDelay(500);
+
+		HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_11);
+
+		vTaskDelay(500);
+
 	}
 }
 
@@ -57,21 +84,6 @@ int main(void)
 ![](Example01.png)
 
 ```
-Task 1: Notification Sent
-Task 2: Notification Received
-Task 3: Notification Received
-Task 1: Notification Sent
-Task 2: Notification Received
-Task 3: Notification Received
-Task 1: Notification Sent
-Task 2: Notification Received
-Task 3: Notification Received
-Task 1: Notification Sent
-Task 2: Notification Received
-Task 3: Notification Received
-Task 1: Notification Sent
-Task 2: Notification Received
-Task 3: Notification Received
 Task 1: Notification Sent
 Task 2: Notification Received
 Task 3: Notification Received
@@ -168,6 +180,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
 }
 ```
+
 ```
 Task01: Received 1 notifications from ISR
 Task01: Received 2 notifications from ISR
@@ -177,7 +190,6 @@ Task01: Received 5 notifications from ISR
 Task01: Received 6 notifications from ISR
 Task01: Received 7 notifications from ISR
 ```
-
 
 ### Example 4 - Sending Data with Task Notifications
 

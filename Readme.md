@@ -39,11 +39,17 @@ already holds it.
 * Example: A task waits until both “WIFI_CONNECTED” and “SENSOR_READY” flags
 are set.
 ## [6. Task Notifications (Direct-to-Task Notifications)](/Direct_to_Task_Notifications/)
+
+[![Youtube Video](https://img.youtube.com/vi/PYBfxhxOfsg/0.jpg)](https://www.youtube.com/watch?v=PYBfxhxOfsg) 
+
 * Lightweight and faster than semaphores.
 * Each task has a built-in `notification value` (like a private semaphore or mailbox).
 * Tasks can block waiting for a notification, and ISRs or tasks can send notifications.
 * Often recommended instead of binary semaphores when possible.
 ## [7. Message Queues](/Queue/)
+
+[![Youtube Video](https://img.youtube.com/vi/TAY9shuSdlE/0.jpg)](https://www.youtube.com/watch?v=TAY9shuSdlE) 
+
 * FIFO buffers managed by the kernel.
 * Used for `task-to-task` or `ISR-to-task` communication.
 * You can send structured data (not just a signal) between tasks.
