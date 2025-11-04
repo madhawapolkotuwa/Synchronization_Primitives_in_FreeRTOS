@@ -56,6 +56,9 @@ are set.
 * Example: A producer task sends sensor readings to a queue,
 and a consumer task processes them.
 ## [8. Stream Buffers](/Stream_Buffer/)
+
+[![Youtube Video](https://img.youtube.com/vi/f9ZCi5Y4fpQ/0.jpg)](https://www.youtube.com/watch?v=f9ZCi5Y4fpQ) 
+
 * One-way communication channel for continuous streams of bytes.
 * Designed for sending data from ISR to task (like UART receive)..
 * Works like a circular buffer managed by FreeRTOS.

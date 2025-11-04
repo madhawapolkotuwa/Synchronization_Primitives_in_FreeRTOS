@@ -1,5 +1,7 @@
 # 📘 FreeRTOS Stream Buffers
 
+[![Youtube Video](https://img.youtube.com/vi/f9ZCi5Y4fpQ/0.jpg)](https://www.youtube.com/watch?v=f9ZCi5Y4fpQ) 
+
 ## 🔹 What are Stream Buffers?
 
 Stream buffers in FreeRTOS provide a **lightweight**, **one-way communication channel** for passing a stream of bytes between a single `writer (producer)` and a single `reader (consumer)`.
@@ -7,7 +9,7 @@ Stream buffers in FreeRTOS provide a **lightweight**, **one-way communication ch
 They are especially useful for:
 * **Single writer, single reader:** Only one task/ISR may write, only one task may read.
 * **Blocking support:** Tasks can block until enough bytes are available (read) or space is available (write).
-* **ISR safe:** With xStreamBufferSendFromISR().
+* **ISR safe:** With `xStreamBufferSendFromISR()`.
 * **Lightweight:** Lower RAM usage than queues.
 
 ## 🟢 Example 01: Basic Producer/Consumer
@@ -19,9 +21,38 @@ They are especially useful for:
     * PG13 toggles when Producer sends data.
     * PG14 toggles when Consumer receives data.
 
+* 🧩 Creates a new stream buffer using dynamically allocated memory. 
+```c
+xStreamBufferCreate(size_t xStreamBufferSizeBytes, size_t xTriggerLevelBytes);
+```
+ - `xStreamBufferSizeBytes` → total capacity (in bytes) of the stream buffer.
+ - `xTriggerLevelBytes` → the minimum number of bytes that must be available in the buffer before a task that’s blocked on reading is unblocked.
+
+⚙️ What does xTriggerLevelBytes actually do?
+
+When a receiver task calls:
+```c
+xStreamBufferReceive(xStreamBuffer, pvRxData, xMax, xTicksToWait);
+```
+
+it might have to wait until data becomes available.
+ * The task stays blocked until at least `xTriggerLevelBytes` bytes are in the buffer.
+ * Once the buffer contains that much data (or becomes full, or timeout occurs), the task is unblocked and can read.
+
+So, `xTriggerLevelBytes` defines the wake-up threshold for readers waiting for data.
+
+⚠️ Notes
+
+* xTriggerLevelBytes must be less than or equal to xStreamBufferSizeBytes.
+* If you don’t care about this threshold, just set:
+
+`xTriggerLevelBytes = 1` → The reader unblocks as soon as any data arrives.	 
+
+# 
+
 **Real-World Analogy**
 
-Think of this like a pipe: Producer pours water in, Consumer drinks from the other end. If Consumer doesn’t drink, water stays in the pipe.
+Think of this like a pipe: Producer pours water in, Consumer use from the other end. If Consumer doesn’t use, water stays in the pipe.
 
 ```c
 #include "FreeRTOS.h"
@@ -37,15 +68,16 @@ TaskHandle_t ProducerHandle;
 TaskHandle_t ConsumerHandle;
 
 #define STREAM_BUFFER_SIZE 64
-#define TRIGGER_LEVEL	   1
+#define TRIGGER_LEVEL	   1  // check this to chnage 40 bytes. (txData bytes x 2)
 
 /* ***************************** Task Functions ******************************** */
 void ProducerTask(void* pvParameters)
 {
-	char* txData = "Hello from Producer\n";
+	char* txData = "Hello from Producer.\n"; // 21 bytes
 
 	for(;;)
 	{
+		HAL_UART_Transmit(&huart1, (uint8_t *)"Producing Data...\r\n", 20, HAL_MAX_DELAY);
 		size_t bytesSent = xStreamBufferSend(
 				StreamBuffer_Handle,
 				(void *)txData,
@@ -105,15 +137,16 @@ int main(void)
 ![](Example01.png)
 ```
 Stream Buffer Created Successfully
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
-Hello from Producer
+Producing Data...
+Hello from Producer.
+Producing Data...
+Hello from Producer.
+Producing Data...
+Hello from Producer.
+Producing Data...
+Hello from Producer.
+Producing Data...
+Hello from Producer.
 ```
 
 ## 🟡 Example 02 — ISR → Task Communication
@@ -187,7 +220,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart)
 	}
 
     // Restart UART Reception in Interrupt mode
-	HAL_UART_Receive_IT(huart, &rx_data, 1);
+	HAL_UART_Receive_IT(&huart1, &rx_data, 1);
 }
 
 

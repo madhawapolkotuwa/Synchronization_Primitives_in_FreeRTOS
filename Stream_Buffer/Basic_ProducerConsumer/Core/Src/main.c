@@ -77,10 +77,11 @@ TaskHandle_t ConsumerHandle;
 /* ***************************** Task Functions ******************************** */
 void ProducerTask(void* pvParameters)
 {
-	char* txData = "Hello from Producer\n";
+	char* txData = "Hello from Producer.\n"; // 20 bytes
 
 	for(;;)
 	{
+		HAL_UART_Transmit(&huart1, (uint8_t *)"Producing Data...\r\n", 20, HAL_MAX_DELAY);
 		size_t bytesSent = xStreamBufferSend(
 				StreamBuffer_Handle,
 				(void *)txData,
