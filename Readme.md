@@ -7,7 +7,7 @@
 * Commonly used for` task-to-task` or `ISR-to-task` signaling.
 * Example: An ISR “gives” the semaphore when data is ready, and a task “takes” it to
 process the data.
-## [2. Counting Semaphore]((/Semaphore/))
+## [2. Counting Semaphore](/Semaphore/)
 
 [![Youtube Video](https://img.youtube.com/vi/HgZR4UvT7tY/0.jpg)](https://www.youtube.com/watch?v=HgZR4UvT7tY) 
 
